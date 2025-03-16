@@ -26,15 +26,13 @@
 
       createUnityInstance(document.querySelector("#unity-canvas"), {
         arguments: [],
-        dataUrl: "Build/Upt.data.br",
-        frameworkUrl: "Build/Upt.framework.js.br",
-        codeUrl: "Build/Upt.wasm.br",
+        dataUrl: "Build/Upt.data",
+        frameworkUrl: "Build/Upt.framework.js",
+        codeUrl: "Build/Upt.wasm",
         streamingAssetsUrl: "StreamingAssets",
         companyName: "DefaultCompany",
         productName: "UP",
         productVersion: "1.0",
-        // matchWebGLToCanvasSize: false, // Uncomment this to separately control WebGL canvas render size and DOM element size.
-        // devicePixelRatio: 1, // Uncomment this to override low DPI rendering on high DPI displays.
       });
     </script>
   </body>
