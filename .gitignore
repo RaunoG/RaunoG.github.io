@@ -1,0 +1,21 @@
+# Kaustad, mida ei lisata versioonihaldusesse
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+UserSettings/
+
+# Unity Package Manageri vahemälu
+Packages/com.unity.package-manager/
+
+# Projektiga seotud, kuid mittevajalikud failid
+*.csproj  
+*.unityproj  
+*.sln  
+*.userprefs  
+*.pidb  
+*.suo  
+*.svd  
+*.pdb  
