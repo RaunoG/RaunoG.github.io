@@ -1,42 +1,150 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="et">
 <head>
-  <meta charset="utf-8">
-  <title>Unity Web Player | UP</title>
-  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no">
+  <title>UP — Unity WebGL</title>
+
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      background: #000;
-      overflow: hidden;
+    :root{
+      --bg-color: #000;
+      --panel-bg: rgba(0,0,0,0.6);
+      --accent: #4fc3f7;
+      --text: #fff;
     }
-    body {
-      background: url('taustapilt.jpg') no-repeat center center fixed;
+    html,body{
+      height:100%;
+      margin:0;
+      -webkit-font-smoothing:antialiased;
+      background: var(--bg-color) url('taustapilt.jpg') no-repeat center center fixed;
       background-size: cover;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color:var(--text);
+      overflow:hidden; /* canvas täidab ekraani */
     }
-    #unity-canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
-      background: #231F20;
+
+    /* Konteiner */
+    #app {
+      width:100%;
+      height:100%;
+      position:relative;
+      display:flex;
+      align-items:center;
+      justify-content:center;
     }
+
+    /* Unity canvas */
+    #unity-container {
+      width:100%;
+      height:100%;
+      position:relative;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    canvas#unity-canvas {
+      width:100%;
+      height:100%;
+      display:block;
+      background:#231F20;
+      outline:none;
+    }
+
+    /* Loader paneel */
+    #loader {
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform:translate(-50%,-50%);
+      min-width:260px;
+      max-width:90%;
+      padding:14px;
+      border-radius:12px;
+      background:var(--panel-bg);
+      box-shadow:0 8px 24px rgba(0,0,0,0.5);
+      text-align:center;
+      z-index:40;
+      backdrop-filter: blur(6px);
+    }
+    #logo { font-weight:700; margin-bottom:8px; font-size:16px; }
+    #progress {
+      height:10px;
+      background:rgba(255,255,255,0.08);
+      border-radius:8px;
+      overflow:hidden;
+      margin:10px 0 6px;
+    }
+    #progress > i {
+      display:block;
+      height:100%;
+      width:0%;
+      background:linear-gradient(90deg,var(--accent),#8be9ff);
+      transition: width 200ms linear;
+    }
+    #progress-text { font-size:13px; opacity:0.9; margin-bottom:6px; }
+    #mobile-hint { font-size:12px; opacity:0.8; }
+
+    /* Small device tweaks */
+    @media (max-width:720px) {
+      #loader { padding:10px; border-radius:8px; min-width:200px; }
+      #logo { font-size:14px; }
+    }
+    /* Hide loader once ready */
+    .hidden { display:none !important; }
   </style>
 </head>
 <body>
-  <canvas id="unity-canvas" tabindex="-1"></canvas>
+  <div id="app">
+    <div id="unity-container" role="application" aria-label="Unity WebGL content">
+      <canvas id="unity-canvas" tabindex="-1"></canvas>
 
+      <div id="loader" aria-hidden="false">
+        <div id="logo">UP — Laadin</div>
+        <div id="progress"><i id="progress-bar"></i></div>
+        <div id="progress-text">0%</div>
+        <div id="mobile-hint">Soovitus: kasuta WiFi-i ja lukusta ekraani orientatsioon, kui mäng eeldab seda.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Asünkroonne loader (defer) -->
   <script src="Build/Upt.loader.js" defer></script>
+
   <script defer>
-    const canvas = document.getElementById("unity-canvas");
+  (function(){
+    const canvas = document.getElementById('unity-canvas');
+    const loader = document.getElementById('loader');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
 
-    // Mobiili DPI piirang, et vältida liigset mälu- ja CPU-kasutust
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const pixelRatio = isMobile ? Math.min(window.devicePixelRatio, 1.5) : window.devicePixelRatio;
+    // Mobiili tuvastus + piiratud devicePixelRatio (väiksem mälukulu)
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|Opera Mini/i.test(navigator.userAgent);
+    const DPR = isMobile ? Math.min(window.devicePixelRatio || 1, 1.5) : (window.devicePixelRatio || 1);
 
-    createUnityInstance(canvas, {
-      arguments: [],
+    // Mobiili ergonoomika: väiksem canvas reaalses suuruses, aga CSS täidab ekraani
+    function resizeCanvas() {
+      const width = Math.max(window.innerWidth, 320);
+      const height = Math.max(window.innerHeight, 240);
+      // Set the logical backing store size to be scaled by DPR
+      canvas.width = Math.floor(width * DPR);
+      canvas.height = Math.floor(height * DPR);
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
+      if (typeof Module !== 'undefined' && Module.canvas) Module.canvas = canvas;
+    }
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      // Notify Unity of resize if it's loaded:
+      if (typeof unityInstance !== 'undefined' && unityInstance.Module && unityInstance.Module.WebPlayer) {
+        // Many Unity loaders handle resizing internally; we keep this as safe no-op/compat
+        try { window.dispatchEvent(new Event('resize')); } catch(e) {}
+      }
+    }, {passive:true});
+
+    resizeCanvas();
+
+    // createUnityInstance supports third param progress callback in official templates
+    const config = {
       dataUrl: "Build/Upt.data",
       frameworkUrl: "Build/Upt.framework.js",
       codeUrl: "Build/Upt.wasm",
@@ -44,9 +152,78 @@
       companyName: "DefaultCompany",
       productName: "UP",
       productVersion: "1.0",
+      // important for mobile memory savings
       matchWebGLToCanvasSize: true,
-      devicePixelRatio: pixelRatio
-    });
+      devicePixelRatio: DPR,
+      // optional: enable autoSyncPersistentDataPath: true if you want auto-persist (indexedDB)
+      // autoSyncPersistentDataPath: true
+    };
+
+    // Show friendly fallback for unsupported browsers
+    if (!('WebAssembly' in window)) {
+      progressText.textContent = 'Sinu brauser ei toeta WebAssembly — palun uuenda brauserit.';
+    }
+
+    // Hook into createUnityInstance (provided by Upt.loader.js)
+    let unityInstance = null;
+    // Some Unity loader variants expect a third argument progress callback
+    function onProgress(unityProgress) {
+      // unityProgress: 0..1
+      const pct = Math.round(unityProgress * 100);
+      progressBar.style.width = pct + '%';
+      progressText.textContent = pct + '%';
+    }
+
+    // Start instance once loader script is parsed (defer ensures script loaded)
+    // The Upt.loader.js defines createUnityInstance — call it safely
+    function startUnity() {
+      if (typeof createUnityInstance !== 'function') {
+        // loader not found yet; try again shortly
+        setTimeout(startUnity, 50);
+        return;
+      }
+
+      // Some browsers (old Safari) have issues with instantiateStreaming; loader handles fallback,
+      // so we just call createUnityInstance and pass our progress callback.
+      createUnityInstance(canvas, config, onProgress).then((instance) => {
+        unityInstance = instance;
+        // Hide loader and free some UI
+        loader.classList.add('hidden');
+        // Optional: when the page becomes hidden, pause the game to save CPU & battery
+        document.addEventListener('visibilitychange', () => {
+          try {
+            if (document.hidden) instance.SendMessage && instance.SendMessage('GameManager','OnPause'); // if your game expects this
+            else instance.SendMessage && instance.SendMessage('GameManager','OnResume');
+          } catch(e){}
+        });
+      }).catch((message) => {
+        console.error(message);
+        progressText.textContent = 'Laadimine nurjus — vaata konsooli.';
+      });
+    }
+
+    // Wait for a user gesture on mobile before starting heavy init (saves memory & avoids auto-play woes)
+    if (isMobile) {
+      const btn = document.createElement('button');
+      btn.textContent = 'Käivita mäng';
+      btn.style.cssText = 'position:absolute;left:50%;top:66%;transform:translateX(-50%);padding:10px 18px;border-radius:8px;border:none;background:var(--accent);color:#000;font-weight:700;z-index:50;';
+      document.body.appendChild(btn);
+      btn.addEventListener('click', () => {
+        btn.remove();
+        startUnity();
+      }, {once:true});
+      // Also hint user to tap
+      progressText.textContent = 'Puuduta "Käivita mäng" et alustada';
+    } else {
+      // desktop: start automatically
+      startUnity();
+    }
+
+    // Optional: register basic service worker to cache build files (if desired and served via HTTPS)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(()=>{/*ignore*/});
+    }
+  })();
   </script>
 </body>
 </html>
