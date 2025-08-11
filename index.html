@@ -43,17 +43,13 @@
       justify-content:center;
     }
 
-    /* Unity canvas väiksem, et ääred ja taust oleks nähtav */
+    /* Unity canvas – suurus määratakse JS-is vastavalt 16:9 ja 90% reeglile */
     canvas#unity-canvas {
-      width:80%;       /* Väiksem laius */
-      height:80%;      /* Väiksem kõrgus */
-      max-width:1280px; 
-      max-height:720px;
       display:block;
       background:#231F20;
       outline:none;
       margin:auto;
-      border-radius:12px; /* Valikuline ümar äär */
+      border-radius:12px;
     }
 
     /* Loader paneel */
@@ -93,7 +89,6 @@
     @media (max-width:720px) {
       #loader { padding:10px; border-radius:8px; min-width:200px; }
       #logo { font-size:14px; }
-      canvas#unity-canvas { width:95%; height:80%; }
     }
     .hidden { display:none !important; }
   </style>
@@ -125,15 +120,25 @@
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|Opera Mini/i.test(navigator.userAgent);
     const DPR = isMobile ? Math.min(window.devicePixelRatio || 1, 1.5) : (window.devicePixelRatio || 1);
 
-    // Kohandatud: canvas on väiksem, mitte täisekraan
+    // Canvas suuruse seadmine: alati 16:9 ja max 90% ekraanist
     function resizeCanvas() {
-      const width = Math.floor(window.innerWidth * 0.8);   // 80% ekraani laius
-      const height = Math.floor(window.innerHeight * 0.8); // 80% ekraani kõrgus
+      const aspect = 16 / 9;
+      let width = Math.floor(window.innerWidth * 0.9);
+      let height = Math.floor(width / aspect);
+
+      if (height > window.innerHeight * 0.9) {
+        height = Math.floor(window.innerHeight * 0.9);
+        width = Math.floor(height * aspect);
+      }
+
       canvas.width = Math.floor(width * DPR);
       canvas.height = Math.floor(height * DPR);
       canvas.style.width = width + 'px';
       canvas.style.height = height + 'px';
-      if (typeof Module !== 'undefined' && Module.canvas) Module.canvas = canvas;
+
+      if (typeof Module !== 'undefined' && Module.canvas) {
+        Module.canvas = canvas;
+      }
     }
 
     window.addEventListener('resize', () => {
