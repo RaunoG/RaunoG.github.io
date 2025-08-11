@@ -20,7 +20,7 @@
       background-size: cover;
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
       color:var(--text);
-      overflow:hidden; /* canvas täidab ekraani */
+      overflow:hidden;
     }
 
     /* Konteiner */
@@ -33,7 +33,7 @@
       justify-content:center;
     }
 
-    /* Unity canvas */
+    /* Unity container hoiab canvase keskel */
     #unity-container {
       width:100%;
       height:100%;
@@ -42,12 +42,18 @@
       align-items:center;
       justify-content:center;
     }
+
+    /* Unity canvas väiksem, et ääred ja taust oleks nähtav */
     canvas#unity-canvas {
-      width:100%;
-      height:100%;
+      width:80%;       /* Väiksem laius */
+      height:80%;      /* Väiksem kõrgus */
+      max-width:1280px; 
+      max-height:720px;
       display:block;
       background:#231F20;
       outline:none;
+      margin:auto;
+      border-radius:12px; /* Valikuline ümar äär */
     }
 
     /* Loader paneel */
@@ -84,12 +90,11 @@
     #progress-text { font-size:13px; opacity:0.9; margin-bottom:6px; }
     #mobile-hint { font-size:12px; opacity:0.8; }
 
-    /* Small device tweaks */
     @media (max-width:720px) {
       #loader { padding:10px; border-radius:8px; min-width:200px; }
       #logo { font-size:14px; }
+      canvas#unity-canvas { width:95%; height:80%; }
     }
-    /* Hide loader once ready */
     .hidden { display:none !important; }
   </style>
 </head>
@@ -99,6 +104,7 @@
       <canvas id="unity-canvas" tabindex="-1"></canvas>
 
       <div id="loader" aria-hidden="false">
+        <!-- LOADERI NIMI ON SIIN – muuda #logo sisu, et muuta pealkirja -->
         <div id="logo">UP — Laadin</div>
         <div id="progress"><i id="progress-bar"></i></div>
         <div id="progress-text">0%</div>
@@ -107,7 +113,6 @@
     </div>
   </div>
 
-  <!-- Asünkroonne loader (defer) -->
   <script src="Build/Upt.loader.js" defer></script>
 
   <script defer>
@@ -117,33 +122,29 @@
     const progressBar = document.getElementById('progress-bar');
     const progressText = document.getElementById('progress-text');
 
-    // Mobiili tuvastus + piiratud devicePixelRatio (väiksem mälukulu)
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|Opera Mini/i.test(navigator.userAgent);
     const DPR = isMobile ? Math.min(window.devicePixelRatio || 1, 1.5) : (window.devicePixelRatio || 1);
 
-    // Mobiili ergonoomika: väiksem canvas reaalses suuruses, aga CSS täidab ekraani
+    // Kohandatud: canvas on väiksem, mitte täisekraan
     function resizeCanvas() {
-      const width = Math.max(window.innerWidth, 320);
-      const height = Math.max(window.innerHeight, 240);
-      // Set the logical backing store size to be scaled by DPR
+      const width = Math.floor(window.innerWidth * 0.8);   // 80% ekraani laius
+      const height = Math.floor(window.innerHeight * 0.8); // 80% ekraani kõrgus
       canvas.width = Math.floor(width * DPR);
       canvas.height = Math.floor(height * DPR);
       canvas.style.width = width + 'px';
       canvas.style.height = height + 'px';
       if (typeof Module !== 'undefined' && Module.canvas) Module.canvas = canvas;
     }
+
     window.addEventListener('resize', () => {
       resizeCanvas();
-      // Notify Unity of resize if it's loaded:
       if (typeof unityInstance !== 'undefined' && unityInstance.Module && unityInstance.Module.WebPlayer) {
-        // Many Unity loaders handle resizing internally; we keep this as safe no-op/compat
         try { window.dispatchEvent(new Event('resize')); } catch(e) {}
       }
     }, {passive:true});
 
     resizeCanvas();
 
-    // createUnityInstance supports third param progress callback in official templates
     const config = {
       dataUrl: "Build/Upt.data",
       frameworkUrl: "Build/Upt.framework.js",
@@ -152,47 +153,32 @@
       companyName: "DefaultCompany",
       productName: "UP",
       productVersion: "1.0",
-      // important for mobile memory savings
       matchWebGLToCanvasSize: true,
       devicePixelRatio: DPR,
-      // optional: enable autoSyncPersistentDataPath: true if you want auto-persist (indexedDB)
-      // autoSyncPersistentDataPath: true
     };
 
-    // Show friendly fallback for unsupported browsers
     if (!('WebAssembly' in window)) {
       progressText.textContent = 'Sinu brauser ei toeta WebAssembly — palun uuenda brauserit.';
     }
 
-    // Hook into createUnityInstance (provided by Upt.loader.js)
     let unityInstance = null;
-    // Some Unity loader variants expect a third argument progress callback
     function onProgress(unityProgress) {
-      // unityProgress: 0..1
       const pct = Math.round(unityProgress * 100);
       progressBar.style.width = pct + '%';
       progressText.textContent = pct + '%';
     }
 
-    // Start instance once loader script is parsed (defer ensures script loaded)
-    // The Upt.loader.js defines createUnityInstance — call it safely
     function startUnity() {
       if (typeof createUnityInstance !== 'function') {
-        // loader not found yet; try again shortly
         setTimeout(startUnity, 50);
         return;
       }
-
-      // Some browsers (old Safari) have issues with instantiateStreaming; loader handles fallback,
-      // so we just call createUnityInstance and pass our progress callback.
       createUnityInstance(canvas, config, onProgress).then((instance) => {
         unityInstance = instance;
-        // Hide loader and free some UI
         loader.classList.add('hidden');
-        // Optional: when the page becomes hidden, pause the game to save CPU & battery
         document.addEventListener('visibilitychange', () => {
           try {
-            if (document.hidden) instance.SendMessage && instance.SendMessage('GameManager','OnPause'); // if your game expects this
+            if (document.hidden) instance.SendMessage && instance.SendMessage('GameManager','OnPause');
             else instance.SendMessage && instance.SendMessage('GameManager','OnResume');
           } catch(e){}
         });
@@ -202,7 +188,6 @@
       });
     }
 
-    // Wait for a user gesture on mobile before starting heavy init (saves memory & avoids auto-play woes)
     if (isMobile) {
       const btn = document.createElement('button');
       btn.textContent = 'Käivita mäng';
@@ -212,14 +197,11 @@
         btn.remove();
         startUnity();
       }, {once:true});
-      // Also hint user to tap
       progressText.textContent = 'Puuduta "Käivita mäng" et alustada';
     } else {
-      // desktop: start automatically
       startUnity();
     }
 
-    // Optional: register basic service worker to cache build files (if desired and served via HTTPS)
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(()=>{/*ignore*/});
     }
